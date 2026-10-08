@@ -1,0 +1,24 @@
+[Unit]
+Description=Watch dmesg for storage errors and publish alerts to MQTT
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/nas-dmesg-watcher
+EnvironmentFile=/etc/nas-dmesg-watcher.env
+Restart=always
+RestartSec=5
+
+# Reading /dev/kmsg requires CAP_SYSLOG (runs as root by default on Proxmox).
+# Hardening:
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+MemoryMax=64M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,61 @@
+# Home Assistant automation: persistent notification + mobile push on every
+# alert from nas-dmesg-watcher. The sensor itself appears automatically via
+# MQTT autodiscovery (sensor.dmesg_storage_alert, device "dmesg watcher (ugreen)").
+#
+# Adjust `notify.mobile_app_...` to your phone's notify service name
+# (Settings -> Devices & Services -> Mobile App, or Developer Tools -> Actions).
+automation:
+  - alias: "NAS: dmesg storage alert"
+    mode: queued
+    max: 10
+    triggers:
+      - trigger: mqtt
+        topic: nas/dmesg-watch/alert
+    actions:
+      - action: persistent_notification.create
+        data:
+          title: >-
+            {% if trigger.payload_json.severity == 'summary' %}
+              NAS dysk/bcachefs: błędy trwają ({{ trigger.payload_json.suppressed_count }} nowych)
+            {% else %}
+              NAS dysk/bcachefs: wykryto błąd!
+            {% endif %}
+          message: >-
+            **{{ trigger.payload_json.summary }}**
+
+            Host: `{{ trigger.payload_json.host }}`, czas: {{ trigger.payload_json.ts }}
+            {% if trigger.payload_json.context is defined %}
+
+            Kontekst:
+            ```
+            {{ trigger.payload_json.context | join('\n') }}
+            ```
+            {% endif %}
+          notification_id: "nas-dmesg-{{ trigger.payload_json.host }}"
+      - action: notify.mobile_app_CHANGE_ME
+        data:
+          title: >-
+            {% if trigger.payload_json.severity == 'summary' %}
+              NAS: błędy dysków trwają (+{{ trigger.payload_json.suppressed_count }})
+            {% else %}
+              NAS: błąd dysku/bcachefs!
+            {% endif %}
+          message: "{{ trigger.payload_json.summary }}"
+          data:
+            # High priority so it breaks through Do Not Disturb (Android).
+            ttl: 0
+            priority: high
+            tag: "nas-dmesg-{{ trigger.payload_json.host }}"
+
+  # Optional: alert when the watcher itself goes down (LWT -> "offline").
+  - alias: "NAS: dmesg watcher offline"
+    triggers:
+      - trigger: mqtt
+        topic: nas/dmesg-watch/status
+        payload: "offline"
+    actions:
+      - action: persistent_notification.create
+        data:
+          title: "NAS: dmesg watcher offline"
+          message: "Usługa nas-dmesg-watcher przestała raportować (LWT)."
+          notification_id: "nas-dmesg-watcher-offline"
